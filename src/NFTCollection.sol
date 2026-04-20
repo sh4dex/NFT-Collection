@@ -14,7 +14,7 @@ contract NFTCollection is Ownable, ReentrancyGuard {
         uint256 price;
     }
 
-    mapping(address => mapping(uint256 => Listing)) listings;
+    mapping(address => mapping(uint256 => Listing)) public listings;
 
     event NftListed(
         address indexed seller,
@@ -91,7 +91,10 @@ contract NFTCollection is Ownable, ReentrancyGuard {
         address nftAddress_,
         uint256 tokenId_
     ) external nonReentrant {
-        require(listings[nftAddress_][tokenId_].seller == msg.sender);
+        require(
+            listings[nftAddress_][tokenId_].seller == msg.sender,
+            "Only owner can cancel"
+        );
         delete listings[nftAddress_][tokenId_];
 
         emit CanceledListing(nftAddress_, tokenId_);
