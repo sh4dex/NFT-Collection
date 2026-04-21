@@ -71,7 +71,7 @@ contract NFTCollection is Ownable, ReentrancyGuard {
         delete listings[nftAddress_][tokenId_];
 
         IERC721(nftAddress_).safeTransferFrom(
-            listings[nftAddress_][tokenId_].seller,
+            listing_.seller,
             msg.sender,
             listing_.tokenId
         );

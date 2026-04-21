@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {Test} from "forge-std/Test.sol";
 import {NFTCollection} from "../src/NFTCollection.sol";
 import {ERC721} from "../lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
+import {IERC721} from "../lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
 
 contract MockNFT is ERC721 {
     constructor() ERC721("MockNFT", "MNFT") {}
@@ -126,5 +127,81 @@ contract NFTCollectionTest is Test {
     // **************
     // Buy NFT
     // **************
-    function testBuyNft() public {}
+    function testShouldRevertBuyNftIfNotListed() public {
+        vm.startPrank(buyer);
+        vm.expectRevert("NFT not listed for sale");
+        marketplace.buyNft(address(nft), tokenId);
+        vm.stopPrank();
+    }
+
+    /// @dev buyer is paying one wei less than the listed price
+    function testShouldRevertIfBuyPriceIsDifferentFormListed() public {
+        vm.prank(seller);
+        marketplace.listNft(address(nft), tokenId, price);
+
+        vm.startPrank(buyer);
+        vm.deal(buyer, price);
+        vm.expectRevert("Incorrect payment amount");
+        marketplace.buyNft{value: price - 1}(address(nft), tokenId);
+        vm.stopPrank();
+    }
+
+    function testBuyShouldDeleteListingProperly() public {
+        vm.startPrank(seller);
+        marketplace.listNft(address(nft), tokenId, price);
+        nft.approve(address(marketplace), tokenId);
+        vm.stopPrank();
+
+        vm.startPrank(buyer);
+        vm.deal(buyer, price);
+
+        (address sellerBefore, , , ) = marketplace.listings(
+            address(nft),
+            tokenId
+        );
+        marketplace.buyNft{value: price}(address(nft), tokenId);
+        (address sellerAfter, , , ) = marketplace.listings(
+            address(nft),
+            tokenId
+        );
+        assert(sellerBefore == seller && sellerAfter == address(0));
+        vm.stopPrank();
+    }
+
+    function testBuyShouldTransferNftProperly() public {
+        vm.startPrank(seller);
+        marketplace.listNft(address(nft), tokenId, price);
+        nft.approve(address(marketplace), tokenId);
+        vm.stopPrank();
+
+        vm.startPrank(buyer);
+        vm.deal(buyer, price);
+
+        address ownerBefore = nft.ownerOf(tokenId);
+        marketplace.buyNft{value: price}(address(nft), tokenId);
+        address ownerAfter = nft.ownerOf(tokenId);
+
+        assert(ownerBefore == seller && ownerAfter == buyer);
+        vm.stopPrank();
+    }
+
+    function testBalanceShouldBeTransferProperly() public {
+        vm.startPrank(seller);
+        marketplace.listNft(address(nft), tokenId, price);
+        nft.approve(address(marketplace), tokenId);
+        vm.stopPrank();
+
+        vm.startPrank(buyer);
+        vm.deal(buyer, price);
+
+        uint256 balanceBuyerBefore = buyer.balance;
+        uint256 balanceSellerBefore = seller.balance;
+        marketplace.buyNft{value: price}(address(nft), tokenId);
+        uint256 balanceBuyerAfter = buyer.balance;
+        uint256 balanceSellerAfter = seller.balance;
+
+        assert(balanceSellerAfter - balanceSellerBefore == price);
+        assert(balanceBuyerBefore - balanceBuyerAfter == price);
+        vm.stopPrank();
+    }
 }
